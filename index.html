@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shot Timer</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background:#111; color:#fff; text-align:center; padding:24px; }
+        h1 { margin: 10px 0 18px; font-size: 34px; }
+        .big { font-size: 84px; margin: 18px 0; letter-spacing: 2px; }
+        .row { margin: 14px 0; }
+        input[type="number"], input[type="text"] {
+            font-size: 18px; padding: 8px 10px; text-align:center; border-radius: 10px; border: 0;
+        }
+        input[type="number"] { width: 120px; }
+        input[type="text"] { width: 360px; max-width: 92vw; }
+        button { font-size: 22px; padding: 12px 18px; margin: 8px; border: 0; border-radius: 14px; cursor: pointer; }
+        .muted { opacity: 0.85; }
+        .hint { font-size: 14px; opacity: 0.75; margin-top: 14px; }
+        .box { display:inline-block; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; }
+        label { user-select:none; }
+    </style>
+</head>
+<body>
+
+<h1>🍺 Shot Timer</h1>
+
+<div class="big" id="time">01:00</div>
+<div class="row muted">Shots taken: <span id="shots">0</span></div>
+
+<div class="row box">
+    <div class="row">
+        <label>Total Minutes:&nbsp;</label>
+        <input type="number" id="totalMinutes" value="100" min="1" />
+    </div>
+
+    <!-- NEU: Intervall in Sekunden -->
+    <div class="row">
+        <label>Intervall (Sekunden):&nbsp;</label>
+        <input type="number" id="intervalSeconds" value="60" min="1" />
+    </div>
+</div>
+
+<div class="row">
+    <button id="btnStart">▶️ Start</button>
+    <button id="btnStop">⏸ Stop</button>
+</div>
+
+<div class="row">
+    <button id="btnReset">🔄 Reset</button>
+</div>
+
+<div class="row box">
+    <div class="row">
+        <label><input type="checkbox" id="chkBeep" checked /> Sound</label>
+        &nbsp;&nbsp;
+        <label><input type="checkbox" id="chkVoice" checked /> Stimme</label>
+    </div>
+
+    <div class="row">
+        <label>Ansage:</label><br>
+        <input id="sayText" type="text" value="Shot Nummer {n}. Trinken!" />
+    </div>
+
+    <!-- NEU: Eigene MP3 laden -->
+    <div class="row">
+        <label>Eigener Sound (MP3/WAV/OGG):&nbsp;</label>
+        <input id="soundFile" type="file" accept="audio/*" />
+        <div class="hint" id="soundInfo">Aktuell: Standard-Beep</div>
+    </div>
+</div>
+
+<p class="hint">
+    Tipp: Wenn du den Sound testest, einmal „Start“ drücken (Browser-Autoplay-Regeln).
+</p>
+
+<!-- Standard-Beep (wird ersetzt, wenn du eine Datei auswählst) -->
+<audio id="beep" preload="auto">
+    <source id="beepSource" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg">
+</audio>
+
+<script>
+    let interval = null;
+
+    // Timer-Zustand
+    let remaining = 60;         // Sekunden bis zum nächsten Shot
+    let intervalLen = 60;       // Intervalllänge in Sekunden
+    let minutesPassed = 0;      // zählt "Shots"/Intervalle
+    let totalMinutes = 100;     // wie viele Intervalle insgesamt
+    let shots = 0;
+
+    const timeEl = document.getElementById("time");
+    const shotsEl = document.getElementById("shots");
+    const beep = document.getElementById("beep");
+    const beepSource = document.getElementById("beepSource");
+
+    const chkBeep = document.getElementById("chkBeep");
+    const chkVoice = document.getElementById("chkVoice");
+    const sayText = document.getElementById("sayText");
+    const soundFile = document.getElementById("soundFile");
+    const soundInfo = document.getElementById("soundInfo");
+
+    // Für lokale Sound-Datei (ObjectURL wieder freigeben)
+    let customSoundUrl = null;
+
+    function formatMMSS(totalSeconds) {
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }
+
+    function updateDisplay() {
+        timeEl.textContent = formatMMSS(remaining);
+    }
+
+    function announce() {
+        if (chkBeep.checked) {
+            try {
+                beep.currentTime = 0;
+                beep.play();
+            } catch (e) {}
+        }
+
+        if (chkVoice.checked && "speechSynthesis" in window) {
+            const template = sayText.value || "Shot Nummer {n}. Trinken!";
+            const text = template.replaceAll("{n}", String(shots));
+            try {
+                speechSynthesis.cancel();
+                speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+            } catch (e) {}
+        }
+    }
+
+    function tick() {
+        remaining--;
+
+        if (remaining <= 0) {
+            remaining = intervalLen;
+            minutesPassed++;
+            shots++;
+            shotsEl.textContent = String(shots);
+            announce();
+        }
+
+        if (minutesPassed >= totalMinutes) {
+            stopTimer();
+            alert("Fertig! 🍾");
+            return;
+        }
+
+        updateDisplay();
+    }
+
+    function readSettings() {
+        totalMinutes = parseInt(document.getElementById("totalMinutes").value, 10) || 100;
+        intervalLen = parseInt(document.getElementById("intervalSeconds").value, 10) || 60;
+        if (intervalLen < 1) intervalLen = 1;
+    }
+
+    function startTimer() {
+        readSettings();
+        if (interval) return;
+
+        // Wenn frisch gestartet oder nach Reset:
+        if (remaining <= 0 || remaining > intervalLen) remaining = intervalLen;
+
+        interval = setInterval(tick, 1000);
+    }
+
+    function stopTimer() {
+        clearInterval(interval);
+        interval = null;
+    }
+
+    function resetTimer() {
+        stopTimer();
+        readSettings();
+        remaining = intervalLen;
+        minutesPassed = 0;
+        shots = 0;
+        shotsEl.textContent = "0";
+        updateDisplay();
+    }
+
+    // NEU: Eigene Sounddatei nutzen
+    soundFile.addEventListener("change", () => {
+        const file = soundFile.files && soundFile.files[0];
+        if (!file) return;
+
+        // alte URL freigeben
+        if (customSoundUrl) URL.revokeObjectURL(customSoundUrl);
+
+        customSoundUrl = URL.createObjectURL(file);
+        beepSource.src = customSoundUrl;
+        beep.load(); // wichtig, damit der neue Source aktiv wird
+
+        soundInfo.textContent = `Aktuell: ${file.name}`;
+    });
+
+    document.getElementById("btnStart").addEventListener("click", startTimer);
+    document.getElementById("btnStop").addEventListener("click", stopTimer);
+    document.getElementById("btnReset").addEventListener("click", resetTimer);
+
+    // Initial
+    resetTimer();
+</script>
+
+</body>
+</html>
