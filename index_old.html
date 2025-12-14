@@ -34,6 +34,7 @@
         <input type="number" id="totalMinutes" value="100" min="1" />
     </div>
 
+    <!-- NEU: Intervall in Sekunden -->
     <div class="row">
         <label>Intervall (Sekunden):&nbsp;</label>
         <input type="number" id="intervalSeconds" value="60" min="1" />
@@ -49,11 +50,6 @@
     <button id="btnReset">🔄 Reset</button>
 </div>
 
-<!-- 🔊 ADDED: Sound unlock / test button -->
-<div class="row">
-    <button id="btnUnlock">🔊 Test / Enable Sound</button>
-</div>
-
 <div class="row box">
     <div class="row">
         <label><input type="checkbox" id="chkBeep" checked /> Sound</label>
@@ -66,6 +62,7 @@
         <input id="sayText" type="text" value="Shot Nummer {n}. Trinken!" />
     </div>
 
+    <!-- NEU: Eigene MP3 laden -->
     <div class="row">
         <label>Eigener Sound (MP3/WAV/OGG):&nbsp;</label>
         <input id="soundFile" type="file" accept="audio/*" />
@@ -74,9 +71,10 @@
 </div>
 
 <p class="hint">
-    Tipp: Auf dem Handy zuerst „🔊 Test / Enable Sound“ tippen, dann Start.
+    Tipp: Wenn du den Sound testest, einmal „Start“ drücken (Browser-Autoplay-Regeln).
 </p>
 
+<!-- Standard-Beep (wird ersetzt, wenn du eine Datei auswählst) -->
 <audio id="beep" preload="auto">
     <source id="beepSource" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg">
 </audio>
@@ -84,10 +82,11 @@
 <script>
     let interval = null;
 
-    let remaining = 60;
-    let intervalLen = 60;
-    let minutesPassed = 0;
-    let totalMinutes = 100;
+    // Timer-Zustand
+    let remaining = 60;         // Sekunden bis zum nächsten Shot
+    let intervalLen = 60;       // Intervalllänge in Sekunden
+    let minutesPassed = 0;      // zählt "Shots"/Intervalle
+    let totalMinutes = 100;     // wie viele Intervalle insgesamt
     let shots = 0;
 
     const timeEl = document.getElementById("time");
@@ -101,30 +100,8 @@
     const soundFile = document.getElementById("soundFile");
     const soundInfo = document.getElementById("soundInfo");
 
+    // Für lokale Sound-Datei (ObjectURL wieder freigeben)
     let customSoundUrl = null;
-
-    // 🔊 ADDED: audio unlock helper
-    let audioUnlocked = false;
-    function unlockAudioOnce() {
-        if (audioUnlocked) return;
-        audioUnlocked = true;
-        try {
-            const p = beep.play();
-            if (p && typeof p.then === "function") {
-                p.then(() => {
-                    beep.pause();
-                    beep.currentTime = 0;
-                }).catch(() => {
-                    audioUnlocked = false;
-                });
-            } else {
-                beep.pause();
-                beep.currentTime = 0;
-            }
-        } catch {
-            audioUnlocked = false;
-        }
-    }
 
     function formatMMSS(totalSeconds) {
         const m = Math.floor(totalSeconds / 60);
@@ -181,10 +158,12 @@
     }
 
     function startTimer() {
-        unlockAudioOnce(); // 🔊 ADDED
         readSettings();
         if (interval) return;
+
+        // Wenn frisch gestartet oder nach Reset:
         if (remaining <= 0 || remaining > intervalLen) remaining = intervalLen;
+
         interval = setInterval(tick, 1000);
     }
 
@@ -203,13 +182,18 @@
         updateDisplay();
     }
 
+    // NEU: Eigene Sounddatei nutzen
     soundFile.addEventListener("change", () => {
         const file = soundFile.files && soundFile.files[0];
         if (!file) return;
+
+        // alte URL freigeben
         if (customSoundUrl) URL.revokeObjectURL(customSoundUrl);
+
         customSoundUrl = URL.createObjectURL(file);
         beepSource.src = customSoundUrl;
-        beep.load();
+        beep.load(); // wichtig, damit der neue Source aktiv wird
+
         soundInfo.textContent = `Aktuell: ${file.name}`;
     });
 
@@ -217,17 +201,7 @@
     document.getElementById("btnStop").addEventListener("click", stopTimer);
     document.getElementById("btnReset").addEventListener("click", resetTimer);
 
-    // 🔊 ADDED: unlock/test button behavior
-    document.getElementById("btnUnlock").addEventListener("click", () => {
-        unlockAudioOnce();
-        try {
-            beep.currentTime = 0;
-            beep.play();
-        } catch {
-            alert("Sound blocked. Check mute switch & volume.");
-        }
-    });
-
+    // Initial
     resetTimer();
 </script>
 
