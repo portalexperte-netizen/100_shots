@@ -152,6 +152,11 @@
                 speechSynthesis.speak(new SpeechSynthesisUtterance(text));
             } catch (e) {}
         }
+
+        if ("vibrate" in navigator) {
+            navigator.vibrate([300, 150, 300]);
+        }
+
     }
 
     function tick() {
